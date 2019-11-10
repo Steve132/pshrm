@@ -3,6 +3,7 @@
 #include "SimpleImage.hpp"
 #include<algorithm>
 #include<iterator>
+#include "hdr_view.hpp"
 using namespace std;
 
 
@@ -31,7 +32,9 @@ SimpleImage<float> pano_pad_flip(const SimpleImage<float>& inpano)
 
 int main(int argc,char** argv)
 {
-	SimpleImage<float> input("./testdata/evening_road_01_2k.hdr");
-	input=pano_pad_flip(input);
+	system("pwd");
+	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
+	hdr_view(input);
+	//input=pano_pad_flip(input);
 	return 0;
 }

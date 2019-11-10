@@ -5,15 +5,18 @@ add_library(simpleimage
 )
 set_property(TARGET simpleimage PROPERTY CXX_STANDARD 11)
 target_include_directories(simpleimage PRIVATE deps)
+target_compile_definitions(simpleimage PRIVATE -DSIMPLE_IMAGE_CIMG_SUPPORT)
 
 add_library(pshrm
 	pshrm.hpp
 	pshrm.cpp
+	hdr_view.cpp
+	hdr_view.hpp
 )
 target_include_directories(pshrm PRIVATE deps)
 
 set_property(TARGET pshrm PROPERTY CXX_STANDARD 11)
-target_link_libraries(pshrm simpleimage)
+target_link_libraries(pshrm simpleimage X11 pthread)
 
 add_executable(pshrm_test
 	pshrm_test.cpp

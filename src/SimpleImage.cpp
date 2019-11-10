@@ -114,14 +114,7 @@ void SimpleImage<float>::write(const std::string& filename) const
 
 
 
-/*
-	SimpleImage(const cv::Mat& mat);
-	void toMat(cv::Mat& out) const;
 
-	template<class CDataType>
-	SimpleImage(const cimg_library::CImg<CDataType>&);
-	void toCImg(cimg_library::CImg<FType>& out) const;
-*/
 #ifdef SIMPLE_IMAGE_OPENCV_SUPPORT
 #include <opencv2/core.hpp>
 
@@ -135,6 +128,7 @@ static inline void swapBGR(color_t* const data, size_t N)
 	}
 }
 
+template<>
 SimpleImage::SimpleImage(const cv::Mat& mat)
 {
 	int w = mat.cols;
@@ -158,15 +152,31 @@ void SimpleImage::toMat(cv::Mat& out) const
 #ifdef SIMPLE_IMAGE_CIMG_SUPPORT
 #include <CImg.h>
 
-SimpleImage::SimpleImage(const cimg_library::CImg<unsigned char>& cimg)
+template class SimpleImage<double>;
+template class SimpleImage<float>;
+template class SimpleImage<uint8_t>;
+template class SimpleImage<uint16_t>;
+template class SimpleImage<uint32_t>;
+template class SimpleImage<uint64_t>;
+
+
+
+
+
+template<class FData>
+SimpleImage<FData>::SimpleImage(const cimg_library::CImg<FData>& cimg)
 {
-	cimg_library::CImg<unsigned char> ac = cimg.get_permute_axes("CXYZ");
-	if (ac.width() != 3) throw std::runtime_error("Invalid number of channels in CImg");
-	init(ac.height(), ac.depth(), reinterpret_cast<const color_t*>(ac.data()));
+	cimg_library::CImg<FData> ac = cimg.get_permute_axes("CXYZ");
+	init(ac.width(), ac.height(), ac.depth(), ac.data());
 }
-void SimpleImage::toCImg(cimg_library::CImg<unsigned char>& out) const
+
+template<class FData>
+cimg_library::CImg<FData> SimpleImage<FData>::toCImg() const
 {
-	out.assign(reinterpret_cast<const unsigned char*>(mdata), 3, width(), height(), 1);
+	cimg_library::CImg<FData> out(data(),channels(),width(),height(),1); //shared temporary
 	out.permute_axes("YZCX");
+	return out;
 }
+
+
 #endif

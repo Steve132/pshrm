@@ -4,6 +4,15 @@
 #include<vector>
 #include<string>
 
+namespace cv{
+	class Mat;
+}
+namespace cimg_library
+{
+	template<class CDataType>
+	class CImg;
+};
+
 template<class FType>
 class SimpleImage
 {
@@ -52,7 +61,14 @@ public:
 
 	void write(const std::string& filename) const;
 	SimpleImage(const std::string& filename);
+	
+	SimpleImage(const cv::Mat& mat);
+	void toMat(cv::Mat& out) const;
+	
+	SimpleImage(const cimg_library::CImg<FType>&);
+	cimg_library::CImg<FType> toCImg() const;
 };
+
 
 #endif
 
