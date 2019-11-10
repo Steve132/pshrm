@@ -160,9 +160,6 @@ template class SimpleImage<uint32_t>;
 template class SimpleImage<uint64_t>;
 
 
-
-
-
 template<class FData>
 SimpleImage<FData>::SimpleImage(const cimg_library::CImg<FData>& cimg)
 {

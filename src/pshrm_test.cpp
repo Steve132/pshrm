@@ -1,9 +1,14 @@
-
 #include<iostream>
 #include "SimpleImage.hpp"
 #include<algorithm>
 #include<iterator>
 #include "hdr_view.hpp"
+
+#define CL_HPP_MINIMUM_OPENCL_VERSION 110
+#define CL_HPP_TARGET_OPENCL_VERSION 120
+//#define CL_HPP_ENABLE_DEVICE_FISSION
+#define CL_HPP_ENABLE_EXCEPTIONS
+#include<CL/cl2.hpp>
 using namespace std;
 
 
@@ -28,13 +33,51 @@ SimpleImage<float> pano_pad_flip(const SimpleImage<float>& inpano)
 		}
 		return flipped;
 }
+std::ostream& operator<<(std::ostream& out,const cl::Platform& plat)
+{
+	return out << plat.getInfo<CL_PLATFORM_VENDOR>() << ":" << plat.getInfo<CL_PLATFORM_NAME>() << " " << plat.getInfo<CL_PLATFORM_VERSION>();
+}
+extern unsigned char raytrace_cl[];
+extern unsigned int raytrace_cl_len;
+
+SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
+{
+	std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    cl::Platform plat;
+	std::cout << "There are: " << platforms.size() << " platforms." << std::endl;
+	std::cout << "Selecting first platform:" << std::endl;
+	plat=platforms[0];
+	std::cout << "\t" << plat << std::endl;
+	cl::Platform::setDefault(plat);
+	//TODO: get all devices, compile a program for various devices and contexts.
+	//For now just use the default.
+	std::string raytrace_source(raytrace_cl,raytrace_cl+raytrace_cl_len);
+	cl::Program vectorAddProgram({raytrace_source});
+	try {
+		vectorAddProgram.build("-cl-std=CL1.2");
+	}
+	catch (...) {
+	// Print build info for all devices
+		cl_int buildErr = CL_SUCCESS;
+		auto buildInfo = vectorAddProgram.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&buildErr);
+		for (auto &pair : buildInfo) {
+			std::cerr << pair.second << std::endl << std::endl;
+		}
+		throw std::runtime_error("Failed to load program");
+	}
+	
+
+	return inpano;
+}
 
 
 int main(int argc,char** argv)
 {
 	system("pwd");
 	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
-	hdr_view(input);
+	doOpenCLTest(input);
+	//hdr_view(input);
 	//input=pano_pad_flip(input);
 	return 0;
 }
