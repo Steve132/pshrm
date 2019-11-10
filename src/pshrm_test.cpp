@@ -37,8 +37,7 @@ std::ostream& operator<<(std::ostream& out,const cl::Platform& plat)
 {
 	return out << plat.getInfo<CL_PLATFORM_VENDOR>() << ":" << plat.getInfo<CL_PLATFORM_NAME>() << " " << plat.getInfo<CL_PLATFORM_VERSION>();
 }
-extern unsigned char raytrace_cl[];
-extern unsigned int raytrace_cl_len;
+extern const char _raytrace_cl_c[];
 
 SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 {
@@ -52,7 +51,7 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	cl::Platform::setDefault(plat);
 	//TODO: get all devices, compile a program for various devices and contexts.
 	//For now just use the default.
-	std::string raytrace_source(raytrace_cl,raytrace_cl+raytrace_cl_len);
+	std::string raytrace_source(_raytrace_cl_c);
 	cl::Program vectorAddProgram({raytrace_source});
 	try {
 		vectorAddProgram.build("-cl-std=CL1.2");

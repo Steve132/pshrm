@@ -16,7 +16,7 @@ __kernel void gaussian_blur(
             sum += mask[a+maskSize+(b+maskSize)*(maskSize*2+1)]
                 *read_imagef(image, sampler, pos + (int2)(a,b)).x;
         }
+	
 	}
-
     blurredImage[pos.x+pos.y*get_global_size(0)] = sum;
 }

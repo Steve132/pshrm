@@ -25,9 +25,8 @@ target_include_directories(pshrm PRIVATE deps)
 set_property(TARGET pshrm PROPERTY CXX_STANDARD 11)
 target_link_libraries(pshrm simpleimage X11 pthread)
 add_custom_command(OUTPUT raytrace.cl.c COMMAND
-	xxd -i raytrace.cl "${CMAKE_CURRENT_BINARY_DIR}/raytrace.cl.c"
-	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-	DEPENDS raytrace.cl
+	clvalidate -i "${CMAKE_CURRENT_SOURCE_DIR}/raytrace.cl" -oc raytrace.cl.c
+	DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/raytrace.cl"
 )
 
 #add_custom_command(OUTPUT test.c 
