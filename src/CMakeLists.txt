@@ -24,10 +24,14 @@ target_include_directories(pshrm PRIVATE deps)
 
 set_property(TARGET pshrm PROPERTY CXX_STANDARD 11)
 target_link_libraries(pshrm simpleimage X11 pthread)
+
+
 add_custom_command(OUTPUT raytrace.cl.c COMMAND
 	clvalidate -i "${CMAKE_CURRENT_SOURCE_DIR}/raytrace.cl" -oc raytrace.cl.c
 	DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/raytrace.cl"
 )
+
+
 
 #add_custom_command(OUTPUT test.c 
 #	COMMAND echo "/home/steven/master_root/projects/programming/graphics/pshrm/src/raytrace.cl:4:1: error: could not convert ‘0’ from ‘int’ to ‘SimpleImage<float>" && exit 1

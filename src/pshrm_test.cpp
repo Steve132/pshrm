@@ -52,21 +52,67 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	//TODO: get all devices, compile a program for various devices and contexts.
 	//For now just use the default.
 	std::string raytrace_source(_raytrace_cl_c);
-	cl::Program vectorAddProgram({raytrace_source});
+	cl::Program raytraceProgram({raytrace_source});
 	try {
-		vectorAddProgram.build("-cl-std=CL1.2");
+		raytraceProgram.build("-cl-std=CL1.2");
 	}
 	catch (...) {
 	// Print build info for all devices
 		cl_int buildErr = CL_SUCCESS;
-		auto buildInfo = vectorAddProgram.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&buildErr);
+		auto buildInfo = raytraceProgram.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&buildErr);
 		for (auto &pair : buildInfo) {
 			std::cerr << pair.second << std::endl << std::endl;
 		}
 		throw std::runtime_error("Failed to load program");
 	}
+	cl::Context ctx=cl::Context::getDefault();
 	
-
+	SimpleImage<float> si2(4,inpano.width(),inpano.height(),nullptr);
+	const float* din=inpano.data();
+	float* dout=si2.data();
+	for(size_t i=0;i<si2.size()/si2.channels();i++)
+	{
+		for(size_t ci=0;ci<si2.channels();ci++)
+		{
+			
+			if(ci < inpano.channels())
+			{
+				*dout=*(din++);
+			}
+			dout++;
+		}
+	}
+	
+	cl::ImageFormat fmt(CL_RGBA,CL_FLOAT);
+	cl_int err;       
+	cl::Image2D im(ctx,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,fmt,inpano.width(),inpano.height(),0,(void*)si2.data(),&err);
+	if(err != CL_SUCCESS)
+	{
+		throw std::runtime_error("Failed to load image");
+	}
+	cl::Image2D im2(ctx,CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,fmt,inpano.width(),inpano.height(),0,nullptr,&err);
+	if(err != CL_SUCCESS)
+	{
+		throw  std::runtime_error("Failed to create output buffer");
+	}
+	
+	cl::KernelFunctor<
+            cl::Image2D,
+			cl::Image2D
+            > raytraceKernel(raytraceProgram, "perpixel");
+	try{
+	
+		cl::NDRange rnge(inpano.width(),inpano.height());
+		std::cerr << inpano.width() << "x" << inpano.height() << std::endl;
+		auto result=raytraceKernel(cl::EnqueueArgs(rnge),im,im2);
+		result.wait();
+	} catch(const cl::Error& err)
+	{
+		std::cerr << "Error " << err.err() << std::endl;
+	}
+	//result.wait();
+	
+	
 	return inpano;
 }
 
