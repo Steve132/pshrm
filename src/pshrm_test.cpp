@@ -81,38 +81,49 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	{
 		throw  std::runtime_error("Failed to create output buffer");
 	}
-	
+	SimpleImage<float> final_out(si2.channels(),si2.width(),si2.height());
+	std::fill(final_out.data(),final_out.data()+final_out.size(),0.0f);
 	cl::KernelFunctor<
             cl::Image2D,
-			cl::Image2D
+			cl::Image2D,
+			std::array<uint32_t,2>,
+			std::array<uint32_t,2>
             > raytraceKernel(raytraceProgram, "perpixel");
-	try{
 	
+	size_t chunksize=64;
+	for(size_t cx=0;cx < inpano.width(); cx+=chunksize)
+	for(size_t cy=0;cy < inpano.height(); cy+=chunksize)
+	{
 		cl::NDRange rnge(inpano.width(),inpano.height());
-		std::cerr << inpano.width() << "x" << inpano.height() << std::endl;
-		auto result=raytraceKernel(cl::EnqueueArgs(rnge),im,im2);
+		auto result=raytraceKernel(
+			cl::EnqueueArgs(rnge),
+			im,im2,
+			{cx,cy},
+			{(uint32_t)std::min(cx+chunksize,inpano.width()),(uint32_t)std::min(cy+chunksize,inpano.height())}
+		);
 		result.wait();
-	} catch(const cl::Error& err)
-	{
-		std::cerr << "Error " << err.err() << std::endl;
+		cl::CommandQueue queue(ctx);
+		if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{0,0,0},{inpano.width(),inpano.height(),1},0,0, (void*)si2.data()))
+		{
+			throw std::runtime_error("Error reading back result image");
+		}
+		queue.finish();
+		
+		float* dfin=final_out.data();
+		const float* dsi2=si2.data();
+		for(size_t i=0;i<final_out.size();i++)
+		{
+			dfin[i]+=dsi2[i];
+		}
+		std::cerr << "Did chunk " << cx << "," << cy << std::endl;
 	}
-	cl::CommandQueue queue(ctx);
-	if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{0,0,0},{inpano.width(),inpano.height(),1},0,0, (void*)si2.data()))
-	{
-		throw std::runtime_error("Error reading back result image");
-	}
-	queue.finish();
 	
-	//result.wait();
-	
-	
-	return si2.channel_pad(3);
+	return final_out.channel_pad(3);
 }
 
 
 int main(int argc,char** argv)
 {
-	system("pwd");
 	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
 	SimpleImage<float> output=doOpenCLTest(input);
 	hdr_view(output);
