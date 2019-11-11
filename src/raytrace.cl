@@ -42,8 +42,8 @@ __kernel void perpixel(
 	const float sample_scaley=1.f/(float)(get_global_size(1));
 	const float sample_scale=sample_scalex*sample_scaley/(4.0*M_PI_F);
 
-	for(int xi=lower_img_bounds.x;xi<upper_img_bounds.x;xi++)
 	for(int yi=lower_img_bounds.y;yi<upper_img_bounds.y;yi++)
+	for(int xi=lower_img_bounds.x;xi<upper_img_bounds.x;xi++)
 	{
 		float4 oval=read_imagef(image,samplerIn,(int2)(xi,yi));
 		float2 posf=convert_float2((int2)(xi,yi));

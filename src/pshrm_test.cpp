@@ -67,7 +67,7 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	}
 	cl::Context ctx=cl::Context::getDefault();
 
-	SimpleImage<float> si2=inpano.channel_pad(4);
+	SimpleImage<float> si2=inpano.channel_select(0xF);
 	
 	cl::ImageFormat fmt(CL_RGBA,CL_FLOAT);
 	cl_int err;       
@@ -91,8 +91,10 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
             > raytraceKernel(raytraceProgram, "perpixel");
 	
 	size_t chunksize=64;
-	for(size_t cx=0;cx < inpano.width(); cx+=chunksize)
+	size_t Nchunks=inpano.height()*inpano.width()/(chunksize*chunksize);
+	size_t chunks_so_far=0;
 	for(size_t cy=0;cy < inpano.height(); cy+=chunksize)
+	for(size_t cx=0;cx < inpano.width(); cx+=chunksize)
 	{
 		cl::NDRange rnge(inpano.width(),inpano.height());
 		auto result=raytraceKernel(
@@ -115,10 +117,11 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 		{
 			dfin[i]+=dsi2[i];
 		}
-		std::cerr << "Did chunk " << cx << "," << cy << std::endl;
+
+		std::cerr << "Did chunk " <<(++chunks_so_far) << "/" << Nchunks << std::endl;
 	}
 	
-	return final_out.channel_pad(3);
+	return final_out.channel_select(0x7);
 }
 
 
