@@ -5,7 +5,6 @@ __kernel void perpixel(
         __write_only image2d_t image_out
     ) 
 {
-
     const int2 pos = {get_global_id(0), get_global_id(1)};
 	float4 val=read_imagef(image,samplerIn,pos);
 	float tmp=val.x;

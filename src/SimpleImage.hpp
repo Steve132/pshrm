@@ -67,6 +67,8 @@ public:
 	
 	SimpleImage(const cimg_library::CImg<FType>&);
 	cimg_library::CImg<FType> toCImg() const;
+	
+	SimpleImage<FType> channel_pad(unsigned int new_channels) const;
 };
 
 

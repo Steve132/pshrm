@@ -66,22 +66,8 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 		throw std::runtime_error("Failed to load program");
 	}
 	cl::Context ctx=cl::Context::getDefault();
-	
-	SimpleImage<float> si2(4,inpano.width(),inpano.height(),nullptr);
-	const float* din=inpano.data();
-	float* dout=si2.data();
-	for(size_t i=0;i<si2.size()/si2.channels();i++)
-	{
-		for(size_t ci=0;ci<si2.channels();ci++)
-		{
-			
-			if(ci < inpano.channels())
-			{
-				*dout=*(din++);
-			}
-			dout++;
-		}
-	}
+
+	SimpleImage<float> si2=inpano.channel_pad(4);
 	
 	cl::ImageFormat fmt(CL_RGBA,CL_FLOAT);
 	cl_int err;       
@@ -110,10 +96,17 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	{
 		std::cerr << "Error " << err.err() << std::endl;
 	}
+	cl::CommandQueue queue(ctx);
+	if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{0,0,0},{inpano.width(),inpano.height(),1},0,0, (void*)si2.data()))
+	{
+		throw std::runtime_error("Error reading back result image");
+	}
+	queue.finish();
+	
 	//result.wait();
 	
 	
-	return inpano;
+	return si2.channel_pad(3);
 }
 
 
@@ -121,8 +114,8 @@ int main(int argc,char** argv)
 {
 	system("pwd");
 	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
-	doOpenCLTest(input);
-	//hdr_view(input);
+	SimpleImage<float> output=doOpenCLTest(input);
+	hdr_view(output);
 	//input=pano_pad_flip(input);
 	return 0;
 }

@@ -111,7 +111,28 @@ void SimpleImage<float>::write(const std::string& filename) const
 	}
 }
 
-
+template<class FType>
+SimpleImage<FType> SimpleImage<FType>::channel_pad(unsigned int new_channels) const
+{
+	SimpleImage<FType> si2(new_channels,width(),height(),nullptr);
+	const FType* din=data();
+	FType* dout=si2.data();
+	size_t N=size()/channels();
+	size_t Co=si2.channels();
+	size_t Ci=channels();
+	size_t Cm=std::min(Co,Ci);
+	
+	for(size_t i=0;i<N;i++)
+	{
+		const FType* ldin=din+i*Ci;
+		FType* ldout=dout+i*Co;
+		for(size_t c=0;c<Cm;c++)
+		{
+			ldout[c]=ldin[c];
+		}
+	}
+	return si2;
+}
 
 
 
