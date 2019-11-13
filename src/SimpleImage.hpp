@@ -91,7 +91,9 @@ public:
 	SimpleImage<RESULT_INVOKE(UnaryFunction,FType)> apply(UnaryFunction uf) const; 
 	
 	template<class BinaryFunction,class OtherFType>
-	SimpleImage<RESULT_INVOKE(BinaryFunction,FType,OtherFType)> apply(const SimpleImage<OtherFType>& other,BinaryFunction bf) const; 
+	SimpleImage<RESULT_INVOKE(BinaryFunction,FType,OtherFType)> apply(const SimpleImage<OtherFType>& other,BinaryFunction bf) const;
+	
+	SimpleImage<FType> boxreduce(unsigned int factorx=2,int factory=-1) const;
 };
 
 
@@ -169,6 +171,34 @@ template<class UnaryFunction>
 SimpleImage<RESULT_INVOKE(UnaryFunction,FType)> SimpleImage<FType>::apply(UnaryFunction uf) const
 {
 }
+
+template<class FType>
+SimpleImage<FType> SimpleImage<FType>::boxreduce(unsigned int factorx,int factory) const
+{
+	if(factory <= 0) factory=factorx;
+	if(factorx < 1) factorx=1;
+	if(factory < 1) factory=1;
+	
+	SimpleImage<FType> output(channels(),(width()/factorx)+(width() % factorx ? 1 : 0),(height()/factory)+(height() % factory ? 1 : 0));
+	std::fill(output.data(),output.data()+output.size(),0.0f);
+	//std::vector<FType> scanline(channels()*width());
+	size_t Sx=output.width();
+	const FType* idata=data();
+	size_t N=factorx*factory;
+	
+	for(size_t y=0;y<height();y++)
+	{
+		for(size_t x=0;x<width();x++)
+		{
+				for(size_t c=0;c<channels();c++)
+				{
+					output(c,x/factorx,y/factory)+=operator()(c,x,y)/N;
+				}
+		}
+	}
+	return output;
+}
+
 
 #endif
 

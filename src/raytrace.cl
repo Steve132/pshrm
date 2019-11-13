@@ -21,6 +21,10 @@ static inline float kernelfunc(float ct)
 	ct*=ct;
 	ct*=ct;
 	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
 	return ct;
 }
 __constant sampler_t samplerIn = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
