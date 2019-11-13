@@ -111,11 +111,10 @@ SimpleImage<float> pano_convolve(
 	size_t Nchunks=Ninchunks*Noutchunks;
 	size_t chunks_so_far=0;
 	
-	
-	for(size_t ocy=0;ocy < outheight; ocy+=outchunksizex)
-	for(size_t ocx=0;ocx < outwidth; ocx+=outchunksizey)
-	for(size_t cy=0;cy < inpano.height(); cy+=inchunksizex)
-	for(size_t cx=0;cx < inpano.width(); cx+=inchunksizey)
+	for(size_t ocy=0;ocy < outheight; ocy+=outchunksizey)
+	for(size_t ocx=0;ocx < outwidth; ocx+=outchunksizex)
+	for(size_t cy=0;cy < inpano.height(); cy+=inchunksizey)
+	for(size_t cx=0;cx < inpano.width(); cx+=inchunksizex)
 	{
 		cl::NDRange rnge(outchunksizex,outchunksizey);
 		cl::NDRange offset(ocx,ocy);
@@ -127,11 +126,17 @@ SimpleImage<float> pano_convolve(
 		);
 		result.wait();
 		cl::CommandQueue queue(ctx);
+		try
+		{
 		if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{ocx,ocy,0},{outchunksizex,outchunksizey,1},0,0, (void*)si2.data()))
 		{
 			throw std::runtime_error("Error reading back result image");
 		}
 		queue.finish();
+		} catch(const cl::Error& er)
+		{
+			std::cerr << "The error number is " << er.err() << std::endl;
+		}
 		
 		final_out.subimage({ocx,ocy},si2,[](const float a,const float b){ return a+b; });
 		std::cerr << "Did chunk " <<(++chunks_so_far) << "/" << Nchunks << std::endl;
@@ -144,7 +149,8 @@ SimpleImage<float> pano_convolve(
 int main(int argc,char** argv)
 {
 	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
-	SimpleImage<float> output=pano_convolve(input.width(),input);
+	
+	SimpleImage<float> output=pano_convolve(input.height(),input);
 	hdr_view(output);
 	//input=pano_pad_flip(input);
 	return 0;
