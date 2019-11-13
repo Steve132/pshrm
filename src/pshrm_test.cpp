@@ -39,7 +39,12 @@ std::ostream& operator<<(std::ostream& out,const cl::Platform& plat)
 }
 extern const char _raytrace_cl_c[];
 
-SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
+SimpleImage<float> pano_convolve(
+	size_t outheight,
+	const SimpleImage<float>& inpano,
+	std::array<size_t,2> inchunksize={64,64},
+	std::array<size_t,2> outchunksize={0xFFFFFFF,0xFFFFFF}
+)
 {
 	std::vector<cl::Platform> platforms;
     cl::Platform::get(&platforms);
@@ -68,6 +73,7 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	cl::Context ctx=cl::Context::getDefault();
 
 	SimpleImage<float> si2=inpano.channel_select(0xF);
+	size_t outwidth=2*outheight;
 	
 	cl::ImageFormat fmt(CL_RGBA,CL_FLOAT);
 	cl_int err;       
@@ -76,12 +82,13 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 	{
 		throw std::runtime_error("Failed to load image");
 	}
-	cl::Image2D im2(ctx,CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,fmt,inpano.width(),inpano.height(),0,nullptr,&err);
+	cl::Image2D im2(ctx,CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,fmt,outwidth,outheight,0,nullptr,&err);
 	if(err != CL_SUCCESS)
 	{
 		throw  std::runtime_error("Failed to create output buffer");
 	}
-	SimpleImage<float> final_out(si2.channels(),si2.width(),si2.height());
+	
+	SimpleImage<float> final_out(si2.channels(),outwidth,outheight);
 	std::fill(final_out.data(),final_out.data()+final_out.size(),0.0f);
 	cl::KernelFunctor<
             cl::Image2D,
@@ -90,34 +97,43 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 			std::array<uint32_t,2>
             > raytraceKernel(raytraceProgram, "perpixel");
 	
-	size_t chunksize=64;
-	size_t Nchunks=inpano.height()*inpano.width()/(chunksize*chunksize);
+	size_t inchunksizex=std::min(inchunksize[0],inpano.width());
+	size_t inchunksizey=std::min(inchunksize[1],inpano.height());
+	
+	size_t outchunksizex=std::min(outchunksize[0],outwidth);
+	size_t outchunksizey=std::min(outchunksize[1],outheight);
+	
+	size_t Noutchunks=outwidth*outheight/(outchunksizex*outchunksizey);
+	size_t Ninchunks=inpano.height()*inpano.width()/(inchunksizex*inchunksizey);
+
+	si2=SimpleImage<float>(si2.channels(),outchunksizex,outchunksizey);
+	
+	size_t Nchunks=Ninchunks*Noutchunks;
 	size_t chunks_so_far=0;
-	for(size_t cy=0;cy < inpano.height(); cy+=chunksize)
-	for(size_t cx=0;cx < inpano.width(); cx+=chunksize)
+	
+	
+	for(size_t ocy=0;ocy < outheight; ocy+=outchunksizex)
+	for(size_t ocx=0;ocx < outwidth; ocx+=outchunksizey)
+	for(size_t cy=0;cy < inpano.height(); cy+=inchunksizex)
+	for(size_t cx=0;cx < inpano.width(); cx+=inchunksizey)
 	{
-		cl::NDRange rnge(inpano.width(),inpano.height());
+		cl::NDRange rnge(outchunksizex,outchunksizey);
+		cl::NDRange offset(ocx,ocy);
 		auto result=raytraceKernel(
-			cl::EnqueueArgs(rnge),
+			cl::EnqueueArgs(offset,rnge,cl::NDRange()),
 			im,im2,
 			{cx,cy},
-			{(uint32_t)std::min(cx+chunksize,inpano.width()),(uint32_t)std::min(cy+chunksize,inpano.height())}
+			{(uint32_t)std::min(cx+inchunksizex,inpano.width()),(uint32_t)std::min(cy+inchunksizey,inpano.height())}
 		);
 		result.wait();
 		cl::CommandQueue queue(ctx);
-		if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{0,0,0},{inpano.width(),inpano.height(),1},0,0, (void*)si2.data()))
+		if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{ocx,ocy,0},{outchunksizex,outchunksizey,1},0,0, (void*)si2.data()))
 		{
 			throw std::runtime_error("Error reading back result image");
 		}
 		queue.finish();
 		
-		float* dfin=final_out.data();
-		const float* dsi2=si2.data();
-		for(size_t i=0;i<final_out.size();i++)
-		{
-			dfin[i]+=dsi2[i];
-		}
-
+		final_out.subimage({ocx,ocy},si2,[](const float a,const float b){ return a+b; });
 		std::cerr << "Did chunk " <<(++chunks_so_far) << "/" << Nchunks << std::endl;
 	}
 	
@@ -128,7 +144,7 @@ SimpleImage<float> doOpenCLTest(const SimpleImage<float>& inpano)
 int main(int argc,char** argv)
 {
 	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
-	SimpleImage<float> output=doOpenCLTest(input);
+	SimpleImage<float> output=pano_convolve(input.width(),input);
 	hdr_view(output);
 	//input=pano_pad_flip(input);
 	return 0;

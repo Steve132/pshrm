@@ -6,6 +6,13 @@
 #include<bitset> //for popcnt and sel
 #include<array>
 #include<algorithm>
+#include<type_traits>
+
+#if  __cplusplus >= 201703L
+#define RESULT_INVOKE(F,...) std::invoke_result_t<F,__VA_ARGS__>
+#else 
+#define RESULT_INVOKE(F,...) typename std::result_of<F(__VA_ARGS__)>::type
+#endif
 
 namespace cv{
 	class Mat;
@@ -73,9 +80,18 @@ public:
 	cimg_library::CImg<FType> toCImg() const;
 	
 	SimpleImage<FType> channel_select(const std::bitset<64>& mask) const;
+	
 	SimpleImage<FType> subimage(const std::array<size_t,2>& origin,const std::array<size_t,2>& sz) const;
 	void subimage(const std::array<size_t,2>& origin,const SimpleImage<FType>& other);
+	
+	template<class BinaryFunction>
+	void subimage(const std::array<size_t,2>& origin,const SimpleImage<FType>& other, BinaryFunction bf);
 
+	template<class UnaryFunction>
+	SimpleImage<RESULT_INVOKE(UnaryFunction,FType)> apply(UnaryFunction uf) const; 
+	
+	template<class BinaryFunction,class OtherFType>
+	SimpleImage<RESULT_INVOKE(BinaryFunction,FType,OtherFType)> apply(const SimpleImage<OtherFType>& other,BinaryFunction bf) const; 
 };
 
 
@@ -133,8 +149,26 @@ void SimpleImage<FType>::subimage(const std::array<size_t,2>& origin,const Simpl
 		oul+=scanline_N;
 	}
 }
-
-
+template<class FType>
+template<class BinaryFunction>
+void SimpleImage<FType>::subimage(const std::array<size_t,2>& origin,const SimpleImage<FType>& other,BinaryFunction bf)
+{
+	size_t inscanline_N=channels()*other.width();
+	size_t scanline_N=channels()*width();
+	FType* oul=data()+(origin[1]*width()+origin[0])*channels();
+	const FType* ul=other.data();
+	for(size_t ri=0;ri<other.height();ri++)
+	{
+		std::transform(oul,oul+inscanline_N,ul,oul,bf);
+		ul+=inscanline_N;
+		oul+=scanline_N;
+	}
+}
+template<class FType>
+template<class UnaryFunction>
+SimpleImage<RESULT_INVOKE(UnaryFunction,FType)> SimpleImage<FType>::apply(UnaryFunction uf) const
+{
+}
 
 #endif
 
