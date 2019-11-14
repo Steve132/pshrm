@@ -4,39 +4,52 @@
 #include<iterator>
 #include "hdr_view.hpp"
 #include "pshrm.hpp"
+#include<cmath>
 using namespace std;
 
 
 //idea spherical blind deconvolution using known estimates from atmospheric conditions or from cost functions. (spherical higher order statistics..)
 //
-SimpleImage<float> pano_pad_flip(const SimpleImage<float>& inpano)
+float gaussian(float ct2)
 {
-		SimpleImage<float> flipped(inpano.channels(),inpano.width(),inpano.height()*2);
-		
-		std::copy(inpano.data(),inpano.data()+inpano.size(),flipped.data());
-
-		std::copy(
-			std::reverse_iterator<const float*>(inpano.data()+inpano.size()),
-			std::reverse_iterator<const float*>(inpano.data()),flipped.data()+inpano.size());
-		
-		size_t N=inpano.size();
-		size_t C=inpano.channels();
-		float* citer=flipped.data()+inpano.size();
-		for(size_t i=0;i<N;i+=C)
-		{
-			std::reverse(citer+i,citer+i+C);
-		}
-		return flipped;
+	double ct=ct2;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	ct*=ct;
+	return ct;
 }
 
 int main(int argc,char** argv)
 {
 	SimpleImage<float> input("../../testdata/evening_road_01_2k.hdr");
-	input=input.boxreduce(4);
+	input=input.boxreduce(2);
 	hdr_view(input);
 
-	SimpleImage<float> output=pshrm::pano_convolve(input.height(),input);
+	std::vector<float> kgaussian=pshrm::pano_build_kernel(gaussian,2*input.height());
+	for(size_t i=0;i<kgaussian.size();i++)
+	{
+		std::cout << kgaussian[i] << std::endl;
+	}
+	SimpleImage<float> output=pshrm::pano_convolve(input,kgaussian);
 	hdr_view(output);
-	//input=pano_pad_flip(input);
+	
+	auto avg1=input.boxreduce(input.width(),input.height());
+	auto avg2=output.boxreduce(output.width(),output.height());
+	
+	std::cout << avg1(0,0,0) << "," << avg1(1,0,0) << "," << avg1(2,0,0) << std::endl;
+	std::cout << avg2(0,0,0) << "," << avg2(1,0,0) << "," << avg2(2,0,0) << std::endl;
+	
+	//the scale factor incorrectness is almost *exactly* (540*960)/(4*3.14159)
+
 	return 0;
 }

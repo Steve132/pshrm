@@ -13,24 +13,13 @@ static inline float3 delatlong(float2 posdex,const float S)
 	scp.y=v;
 	return (float3)(sct.x*scp.y,sct.x*scp.x,sct.y);
 }
-static inline float kernelfunc(float ct)
-{
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	ct*=ct;
-	return ct;
-}
+
 __constant sampler_t samplerIn = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
+__constant sampler_t ksamplerIn = CLK_NORMALIZED_COORDS_TRUE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
 __kernel void perpixel(
         __read_only image2d_t image,
         __write_only image2d_t image_out,
+		__read_only image1d_t kernel_image,
 		uint2 lower_img_bounds,
 		uint2 upper_img_bounds
     ) 
@@ -47,7 +36,6 @@ __kernel void perpixel(
 	
 	const float3 this_vec=delatlong(convert_float2(pos),S_scale);
 	
-	//float4 val=read_imagef(image,samplerIn,pos);
 	float4 avg=(float4)(0.0f,0.0f,0.0f,0.0f);
 
 	const float sample_scalex=1.f/(float)(sz.x);
@@ -64,7 +52,7 @@ __kernel void perpixel(
 		const float3 sample_vec=delatlong(posf,S_scale);
 		float dotv=dot(sample_vec,this_vec);
 		dotv=max(dotv,0.0f);
-		oval*=kernelfunc(dotv);
+		oval*=read_imagef(kernel_image,ksamplerIn,1.0f-dotv);
 		oval*=sample_scale;
 		avg+=oval;
 	}

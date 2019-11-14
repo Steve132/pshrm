@@ -6,6 +6,7 @@
 #include "pshrm.hpp"
 #include<iostream>
 #include<vector>
+#include<cmath>
 
 static inline std::ostream& operator<<(std::ostream& out,const cl::Platform& plat)
 {
@@ -16,8 +17,9 @@ extern const char _raytrace_cl_c[];
 namespace pshrm
 {
 SimpleImage<float> pano_convolve(
-	size_t outheight,
 	const SimpleImage<float>& inpano,
+	const std::vector<float>& kernel,
+	size_t outheight,
 	std::array<size_t,2> inchunksize,
 	std::array<size_t,2> outchunksize
 )
@@ -30,12 +32,15 @@ SimpleImage<float> pano_convolve(
 	plat=platforms[0];
 	std::cout << "\t" << plat << std::endl;
 	cl::Platform::setDefault(plat);
+	std::vector<cl::Device> devices;
+	plat.getDevices(CL_DEVICE_TYPE_GPU,&devices);
+	if(outheight==0) outheight=inpano.height();
 	//TODO: get all devices, compile a program for various devices and contexts.
 	//For now just use the default.
 	std::string raytrace_source(_raytrace_cl_c);
 	cl::Program raytraceProgram({raytrace_source});
 	try {
-		raytraceProgram.build("-cl-std=CL1.2");
+		raytraceProgram.build(devices,"-cl-std=CL1.2");
 	}
 	catch (...) {
 	// Print build info for all devices
@@ -63,12 +68,18 @@ SimpleImage<float> pano_convolve(
 	{
 		throw  std::runtime_error("Failed to create output buffer");
 	}
+	cl::Image1D kim(ctx,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,cl::ImageFormat(CL_LUMINANCE,CL_FLOAT),kernel.size(),(void*)kernel.data(),&err);
+	if(err != CL_SUCCESS)
+	{
+		throw  std::runtime_error("Failed to create kernel image");
+	}
 	
 	SimpleImage<float> final_out(si2.channels(),outwidth,outheight);
 	std::fill(final_out.data(),final_out.data()+final_out.size(),0.0f);
 	cl::KernelFunctor<
             cl::Image2D,
 			cl::Image2D,
+			cl::Image1D,
 			std::array<uint32_t,2>,
 			std::array<uint32_t,2>
             > raytraceKernel(raytraceProgram, "perpixel");
@@ -86,7 +97,7 @@ SimpleImage<float> pano_convolve(
 	
 	size_t Nchunks=Ninchunks*Noutchunks;
 	size_t chunks_so_far=0;
-	
+	cl::CommandQueue queue=cl::CommandQueue::getDefault();
 	for(size_t ocy=0;ocy < outheight; ocy+=outchunksizey)
 	for(size_t ocx=0;ocx < outwidth; ocx+=outchunksizex)
 	for(size_t cy=0;cy < inpano.height(); cy+=inchunksizey)
@@ -97,16 +108,16 @@ SimpleImage<float> pano_convolve(
 		auto result=raytraceKernel(
 			cl::EnqueueArgs(offset,rnge,cl::NDRange()),
 			im,im2,
+			kim,
 			{cx,cy},
 			{(uint32_t)std::min(cx+inchunksizex,inpano.width()),(uint32_t)std::min(cy+inchunksizey,inpano.height())}
 		);
 		result.wait();
-		cl::CommandQueue queue(ctx);
 		try
 		{
 		if(CL_SUCCESS != queue.enqueueReadImage(im2,true,{ocx,ocy,0},{outchunksizex,outchunksizey,1},0,0, (void*)si2.data()))
 		{
-			throw std::runtime_error("Error reading back result image");
+			throw std::runtime_error("Error reading back result std::for_each()image");
 		}
 		queue.finish();
 		} catch(const cl::Error& er)
@@ -120,4 +131,57 @@ SimpleImage<float> pano_convolve(
 	
 	return final_out.channel_select(0x7);
 }
+SimpleImage<float> pano_pad_flip(const SimpleImage<float>& inpano)
+{
+		SimpleImage<float> flipped(inpano.channels(),inpano.width(),inpano.height()*2);
+		
+		std::copy(inpano.data(),inpano.data()+inpano.size(),flipped.data());
+
+		std::copy(
+			std::reverse_iterator<const float*>(inpano.data()+inpano.size()),
+			std::reverse_iterator<const float*>(inpano.data()),flipped.data()+inpano.size());
+		
+		size_t N=inpano.size();
+		size_t C=inpano.channels();
+		float* citer=flipped.data()+inpano.size();
+		for(size_t i=0;i<N;i+=C)
+		{
+			std::reverse(citer+i,citer+i+C);
+		}
+		return flipped;
+}
+
+
+//Int from 0 to 2pi Int from 0 to pi/2 f(cos(phi)) dphi dtheta
+//(Int from 0 to 2pi dtheta)(Int from 0 to pi/2 f(cos(phi)) dphi
+//u=cos(phi)
+//du=-sin(phi)dphi
+//u1=cos(0)=1
+//u2=cos(pi/2)=0
+//Int from 1 to 0 f(u) (-du)
+//Int from 0 to 1 f(u) du 
+std::vector<float> pano_build_kernel(const std::function<float (float)>& kfunc,size_t phisize,bool renormalize)
+{
+	size_t Nout=static_cast<double>(phisize/2)*std::acos(1.0/static_cast<double>(phisize/2));
+	std::vector<float> cosvec(Nout);
+	double smval=0.0;
+	double du=1.0/static_cast<double>(Nout);
+	for(size_t cti=0;cti<Nout;cti++)
+	{
+		double u=(static_cast<double>(cti)+0.5)*du;
+		float v=kfunc(u);
+		cosvec[cti]=v;
+		smval+=v*du;
+	}
+	double nm=2.0*CL_M_PI*smval;
+	if(renormalize)
+	{
+		for(size_t cti=0;cti<Nout;cti++)
+		{
+			cosvec[cti]/=nm;
+		}
+	}
+	return cosvec;
+}
+
 }
